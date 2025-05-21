@@ -7,12 +7,15 @@
     <link rel="stylesheet" href="css/style.css">
     <!-- Font Awesome for icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QR Code library for mobile camera connection -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode.js@1.0.0/qrcode.min.js"></script>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>Real-time Facial Emotion Recognition</h1>
             <div class="user-controls">
+                <button id="mobileConnectBtn" class="btn"><i class="fas fa-mobile-alt"></i> Connect Mobile</button>
                 <button id="loginBtn" class="btn">Login</button>
             </div>
         </header>
@@ -37,6 +40,7 @@
                 <div class="global-controls">
                     <button id="startAllBtn" class="btn"><i class="fas fa-play"></i> Start All</button>
                     <button id="stopAllBtn" class="btn"><i class="fas fa-stop"></i> Stop All</button>
+                    <button id="viewSavedImagesBtn" class="btn"><i class="fas fa-images"></i> Xem ảnh đã lưu</button>
                     <select id="emotionFilter">
                         <option value="all">All Emotions</option>
                         <option value="happy">Happy</option>
@@ -46,6 +50,9 @@
                         <option value="surprise">Surprise</option>
                         <option value="neutral">Neutral</option>
                         <option value="disgust">Disgust</option>
+                        <option value="contempt">Contempt</option>
+                        <option value="confused">Confused</option>
+                        <option value="calm">Calm</option>
                     </select>
                 </div>
                 
@@ -94,6 +101,23 @@
         </div>
     </div>
     
+    <div class="modal" id="savedImagesModal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Ảnh đã lưu</h2>
+            <div class="camera-filter">
+                <label for="cameraSelectorForImages">Chọn camera:</label>
+                <select id="cameraSelectorForImages">
+                    <option value="all">Tất cả camera</option>
+                    <!-- Camera options will be added dynamically -->
+                </select>
+            </div>
+            <div class="saved-images-container" id="savedImagesContainer">
+                <!-- Saved images will be displayed here -->
+            </div>
+        </div>
+    </div>
+    
     <div class="modal" id="addCameraModal">
         <div class="modal-content">
             <span class="close">&times;</span>
@@ -108,6 +132,7 @@
                     <select id="cameraType" name="cameraType">
                         <option value="webcam">Webcam</option>
                         <option value="ip_camera">IP Camera</option>
+                        <option value="mobile_camera">Mobile Camera</option>
                     </select>
                 </div>
                 <div class="form-group" id="ipUrlGroup">
@@ -115,8 +140,35 @@
                     <input type="text" id="cameraUrl" name="cameraUrl" placeholder="http://192.168.1.4:8080">
                     <small class="form-text text-muted">The "/video" endpoint will be added automatically. Example: Enter "http://192.168.1.4:8080"</small>
                 </div>
+                <div class="form-group" id="mobileInstructionsGroup" style="display: none;">
+                    <label>Mobile Camera Instructions:</label>
+                    <p class="mobile-instructions">
+                        1. Chọn "Mobile Camera" rồi thêm camera.<br>
+                        2. Hoặc click nút "Connect Mobile" ở thanh menu phía trên.<br>
+                        3. Quét mã QR bằng điện thoại để kết nối camera điện thoại.<br>
+                        4. Camera điện thoại sẽ hiển thị trong danh sách cameras.
+                    </p>
+                </div>
                 <button type="submit" class="btn">Add Camera</button>
             </form>
+        </div>
+    </div>
+    
+    <div class="modal" id="mobileConnectModal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Connect Mobile Camera</h2>
+            <div class="qr-container">
+                <div id="qrcode"></div>
+            </div>
+            <div class="mobile-instructions">
+                <p>
+                    1. Quét mã QR này bằng điện thoại.<br>
+                    2. Cho phép truy cập camera trên điện thoại khi được yêu cầu.<br>
+                    3. Giữ trang web trên điện thoại mở khi muốn sử dụng camera.<br>
+                    4. Camera sẽ tự động kết nối và hiển thị trong danh sách.
+                </p>
+            </div>
         </div>
     </div>
     

@@ -1,0 +1,281 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mobile Camera</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #000;
+            font-family: Arial, sans-serif;
+        }
+        .container {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .video-container {
+            flex: 1;
+            position: relative;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .controls {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+        .status {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px;
+            text-align: center;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 8px 15px;
+            margin: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .camera-switch {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 20px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="status" id="status">Waiting for camera...</div>
+        <div class="video-container">
+            <video id="video" autoplay playsinline></video>
+            <button class="camera-switch" id="switchCamera">⟳</button>
+        </div>
+        <div class="controls">
+            <button id="startBtn">Start Camera</button>
+            <button id="stopBtn" disabled>Stop Camera</button>
+        </div>
+    </div>
+
+    <script>
+        // Get connection ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const connectionId = urlParams.get('id');
+        
+        // DOM elements
+        const video = document.getElementById('video');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+        const switchBtn = document.getElementById('switchCamera');
+        const statusEl = document.getElementById('status');
+        
+        // WebSocket and camera variables
+        let ws = null;
+        let stream = null;
+        let isStreaming = false;
+        let captureInterval = null;
+        let facingMode = 'user'; // Front camera by default
+        
+        // Connect to WebSocket
+        function connectWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            ws = new WebSocket(`${protocol}//${host}/ws/${connectionId}`);
+            
+            ws.onopen = () => {
+                statusEl.textContent = 'Connected to server';
+                // Register this mobile camera
+                ws.send(JSON.stringify({
+                    type: 'register_mobile_camera',
+                    id: connectionId,
+                    name: 'Mobile Camera ' + connectionId.substring(7)
+                }));
+            };
+            
+            ws.onclose = () => {
+                statusEl.textContent = 'Disconnected from server';
+                // Try to reconnect
+                setTimeout(connectWebSocket, 3000);
+            };
+            
+            ws.onerror = (error) => {
+                statusEl.textContent = 'Error connecting to server';
+                console.error('WebSocket error:', error);
+            };
+        }
+        
+        // Start camera
+        async function startCamera() {
+            try {
+                // Request camera permission
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: facingMode }
+                });
+                
+                // Set video source
+                video.srcObject = stream;
+                
+                // Update UI
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+                statusEl.textContent = 'Camera active';
+                isStreaming = true;
+                
+                // Start capturing frames
+                startCapturing();
+            } catch (error) {
+                statusEl.textContent = 'Error accessing camera: ' + error.message;
+                console.error('Error accessing camera:', error);
+            }
+        }
+        
+        // Stop camera
+        function stopCamera() {
+            // Stop capturing frames
+            if (captureInterval) {
+                clearInterval(captureInterval);
+                captureInterval = null;
+            }
+            
+            // Stop camera stream
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+                video.srcObject = null;
+            }
+            
+            // Update UI
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+            statusEl.textContent = 'Camera stopped';
+            isStreaming = false;
+        }
+        
+        // Switch between front and back camera
+        async function switchCamera() {
+            // Stop current camera
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            
+            // Switch facing mode
+            facingMode = facingMode === 'user' ? 'environment' : 'user';
+            
+            // If currently streaming, restart camera
+            if (isStreaming) {
+                try {
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: facingMode }
+                    });
+                    video.srcObject = stream;
+                    statusEl.textContent = 'Camera switched to ' + (facingMode === 'user' ? 'front' : 'back');
+                } catch (error) {
+                    statusEl.textContent = 'Error switching camera: ' + error.message;
+                    console.error('Error switching camera:', error);
+                }
+            }
+        }
+        
+        // Start capturing frames and sending to server
+        function startCapturing() {
+            // Create canvas for image processing
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            // Set capture interval (4 seconds)
+            captureInterval = setInterval(() => {
+                if (!isStreaming || !stream || !ws || ws.readyState !== WebSocket.OPEN) return;
+                
+                try {
+                    // Set canvas size to match video
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    
+                    // Draw current frame on canvas
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    
+                    // Convert to base64 image
+                    const frameData = canvas.toDataURL('image/jpeg', 0.8);
+                    
+                    // Send to server
+                    ws.send(JSON.stringify({
+                        type: 'mobile_frame',
+                        id: connectionId,
+                        frame: frameData,
+                        timestamp: Date.now() / 1000
+                    }));
+                    
+                    // Update status
+                    statusEl.textContent = 'Frame captured at ' + new Date().toLocaleTimeString();
+                } catch (error) {
+                    console.error('Error capturing frame:', error);
+                    statusEl.textContent = 'Error capturing frame: ' + error.message;
+                }
+            }, 4000);
+        }
+        
+        // Event listeners
+        startBtn.addEventListener('click', startCamera);
+        stopBtn.addEventListener('click', stopCamera);
+        switchBtn.addEventListener('click', switchCamera);
+        
+        // Connect to WebSocket when page loads
+        window.addEventListener('load', connectWebSocket);
+        
+        // Handle page visibility changes
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                // Page is hidden, pause capturing
+                if (captureInterval) {
+                    clearInterval(captureInterval);
+                    captureInterval = null;
+                    statusEl.textContent = 'Capturing paused (page hidden)';
+                }
+            } else if (isStreaming) {
+                // Page is visible again, resume capturing
+                startCapturing();
+                statusEl.textContent = 'Capturing resumed';
+            }
+        });
+    </script>
+</body>
+</html>
+    

@@ -147,6 +147,7 @@ main {
     width: 100%;
     height: 240px;
     background: #222;
+    overflow: hidden;
 }
 
 .video-element {
@@ -342,4 +343,360 @@ input, select {
     .video-container {
         height: 400px;
     }
+}
+
+/* Mobile Connection */
+.qr-container {
+    display: flex;
+    justify-content: center;
+    margin: 20px 0;
+}
+
+#qrcode {
+    padding: 15px;
+    background: white;
+    border-radius: 5px;
+    display: inline-block;
+}
+
+.mobile-instructions {
+    background-color: #f8f9fa;
+    padding: 10px;
+    border-radius: 5px;
+    margin-top: 15px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Mobile camera badge */
+.camera-item.mobile-camera::before {
+    content: "\f10b";
+    font-family: "Font Awesome 5 Free";
+    margin-right: 10px;
+    color: #3498db;
+}
+
+/* Mobile connection button */
+#mobileConnectBtn {
+    margin-right: 10px;
+    background-color: #27ae60;
+}
+
+#mobileConnectBtn:hover {
+    background-color: #2ecc71;
+}
+
+/* Mobile camera specific styles */
+.camera-box[data-type="mobile_camera"] .camera-title {
+    background-color: #e8f5e9;
+    color: #2e7d32;
+}
+
+/* For mobile devices */
+@media (max-width: 768px) {
+    .modal-content {
+        width: 90%;
+        padding: 15px;
+    }
+    
+    .mobile-instructions {
+        font-size: 12px;
+    }
+}
+
+/* Thêm CSS cho phần hiển thị ảnh đã lưu */
+.saved-images-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 15px;
+    margin-top: 20px;
+    max-height: 70vh;
+    overflow-y: auto;
+    padding: 10px;
+}
+
+.saved-image-item {
+    position: relative;
+    width: 200px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    overflow: hidden;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    transition: transform 0.3s;
+}
+
+.saved-image-item:hover {
+    transform: scale(1.05);
+}
+
+.saved-image-item img {
+    width: 100%;
+    height: 150px;
+    object-fit: cover;
+    transition: transform 0.3s;
+}
+
+.saved-image-item:hover img {
+    transform: scale(1.05);
+}
+
+.saved-image-info {
+    padding: 10px;
+    background: #f7f7f7;
+}
+
+.saved-image-info p {
+    margin: 5px 0;
+    font-size: 12px;
+    color: #555;
+}
+
+.saved-image-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+}
+
+.saved-image-actions .btn {
+    padding: 5px 10px;
+    font-size: 12px;
+    background-color: #3498db;
+}
+
+.saved-image-actions .view-btn {
+    background-color: #3498db;
+}
+
+.saved-image-actions .download-btn {
+    background-color: #27ae60;
+}
+
+.btn-sm {
+    padding: 4px 8px;
+    font-size: 12px;
+}
+
+.camera-filter {
+    margin: 15px 0;
+}
+
+.camera-filter select {
+    padding: 8px;
+    border-radius: 5px;
+    border: 1px solid #ddd;
+    margin-left: 10px;
+}
+
+/* Hiệu ứng và thông báo lưu ảnh */
+.processing-indicator {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10;
+    animation: flash 1s linear;
+}
+
+.processing-indicator span {
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: bold;
+}
+
+@keyframes flash {
+    0% { opacity: 0; }
+    25% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+.saved-indicator {
+    position: absolute;
+    bottom: 40px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(39, 174, 96, 0.9);
+    color: white;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-size: 14px;
+    z-index: 10;
+    animation: slide-up 0.5s ease-out, fade-out 3s ease-in forwards;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+@keyframes slide-up {
+    from { transform: translate(-50%, 20px); opacity: 0; }
+    to { transform: translate(-50%, 0); opacity: 1; }
+}
+
+@keyframes fade-out {
+    0%, 70% { opacity: 1; }
+    100% { opacity: 0; }
+}
+
+/* Hiệu ứng chụp ảnh flash */
+.camera-flash {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: white;
+    z-index: 20;
+    animation: flash-effect 0.5s ease-out;
+}
+
+@keyframes flash-effect {
+    0% { opacity: 0.9; }
+    100% { opacity: 0; }
+}
+
+/* Nút chụp ảnh */
+.capture-btn {
+    background-color: #e74c3c;
+}
+
+.capture-btn:hover {
+    background-color: #c0392b;
+}
+
+/* Trạng thái đang xử lý ảnh */
+.camera-box.processing .video-wrapper::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.3);
+    z-index: 5;
+}
+
+/* Add new styles for saved images */
+.saved-image-wrapper {
+    position: relative;
+    overflow: hidden;
+    height: 180px;
+    width: 100%;
+    border-radius: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.saved-image-wrapper img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.3s ease;
+}
+
+.saved-image-wrapper:hover img {
+    transform: scale(1.05);
+}
+
+.image-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.3);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
+
+.saved-image-wrapper:hover .image-overlay {
+    opacity: 1;
+}
+
+.fullscreen-btn {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    transition: background-color 0.3s ease;
+}
+
+.fullscreen-btn:hover {
+    background-color: rgba(0, 0, 0, 0.8);
+}
+
+.emotion-highlight {
+    font-weight: bold;
+    color: #2196F3;
+}
+
+.saved-image-info {
+    padding: 10px 0;
+}
+
+.error-message {
+    background-color: #ffebee;
+    border-left: 4px solid #f44336;
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: 4px;
+}
+
+.error-message p {
+    margin: 5px 0;
+}
+
+.error-message i {
+    color: #f44336;
+    margin-right: 8px;
+}
+
+.retry-btn {
+    margin-top: 10px;
+    background-color: #f44336;
+    color: white;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.retry-btn:hover {
+    background-color: #e53935;
+}
+
+/* Flash effect for when a capture is successful */
+.saved-indicator {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    right: 10px;
+    background-color: rgba(76, 175, 80, 0.8);
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    text-align: center;
+    z-index: 100;
+    animation: fadeInOut 3s ease-in-out;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { opacity: 0; }
 } 

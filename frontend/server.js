@@ -5,6 +5,7 @@ const cors = require('cors');
 const WebSocket = require('ws');
 const axios = require('axios');
 const { Pool } = require('pg');
+const fs = require('fs');
 require('dotenv').config();
 
 // Create Express app
@@ -49,8 +50,39 @@ wss.on('connection', (ws, req) => {
       // Handle different message types
       switch(data.type) {
         case 'frame':
-          // Forward frame to backend
-          await sendFrameToBackend(clientId, data.cameraId, data.frame);
+          // Forward frame to backend for emotion recognition
+          const frameResult = await sendFrameToBackendForProcessing(clientId, data.cameraId, data.cameraName, data.timestamp, data.frame);
+          // Send results back to client if available
+          if (frameResult && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify(frameResult));
+          }
+          break;
+          
+        case 'mobile_frame':
+          // Handle frame from mobile camera
+          const mobileResult = await sendFrameToBackendForProcessing(clientId, data.id, 'Mobile Camera', data.timestamp, data.frame);
+          // No need to send results back to the mobile device
+          break;
+          
+        case 'register_mobile_camera':
+          // Register mobile camera to system
+          console.log(`Mobile camera registered: ${data.id} - ${data.name}`);
+          // Add the mobile camera to database
+          try {
+            const mobileCamera = {
+              id: data.id,
+              name: data.name || `Mobile Camera ${data.id.substring(7)}`,
+              type: 'mobile_camera',
+              url: ''
+            };
+            
+            const response = await axios.post(`${backendApiUrl}/cameras`, mobileCamera);
+            
+            // Broadcast camera list update to all clients
+            broadcastCameraList();
+          } catch (error) {
+            console.error('Error registering mobile camera:', error);
+          }
           break;
           
         case 'start_stream':
@@ -81,45 +113,57 @@ wss.on('connection', (ws, req) => {
 // Active camera streams
 const activeStreams = new Map();
 
-// Send frame to backend for processing
-async function sendFrameToBackend(clientId, cameraId, frameData) {
+// Send frame to backend for emotion recognition processing
+async function sendFrameToBackendForProcessing(clientId, cameraId, cameraName, timestamp, frameData) {
   try {
-    // Connect to backend WebSocket if not already connected
-    let wsConnection = activeStreams.get(`${clientId}-${cameraId}`);
+    // Prepare data for backend
+    const payload = {
+      client_id: clientId,
+      camera_id: cameraId,
+      camera_name: cameraName || 'Unknown Camera',
+      timestamp: timestamp || Math.floor(Date.now() / 1000),
+      frame: frameData
+    };
     
-    if (!wsConnection || wsConnection.readyState !== WebSocket.OPEN) {
-      const ws = new WebSocket(`${backendWsUrl}/${clientId}/${cameraId}`);
+    // Send frame to backend API for emotion recognition
+    const response = await axios.post(`${backendApiUrl}/process_frame`, payload, {
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      // Set a reasonable timeout
+      timeout: 10000
+    });
+    
+    // If successful, return the results to be sent to the client
+    if (response.status === 200 && response.data) {
+      console.log(`Processed frame from camera ${cameraId}, detected ${response.data.results ? response.data.results.length : 0} faces`);
       
-      ws.on('open', () => {
-        console.log(`Backend WebSocket connected for camera: ${cameraId}`);
-        // Send the current frame once connected
-        ws.send(frameData);
-      });
-      
-      ws.on('message', (data) => {
-        // Forward results to client
-        const client = clients.get(clientId);
-        if (client && client.readyState === WebSocket.OPEN) {
-          client.send(data);
-        }
-      });
-      
-      ws.on('error', (error) => {
-        console.error(`Backend WebSocket error for camera ${cameraId}:`, error);
-      });
-      
-      ws.on('close', () => {
-        console.log(`Backend WebSocket closed for camera: ${cameraId}`);
-        activeStreams.delete(`${clientId}-${cameraId}`);
-      });
-      
-      activeStreams.set(`${clientId}-${cameraId}`, ws);
+      // Format for client
+      return {
+        type: 'emotion_results',
+        camera_id: cameraId,
+        timestamp: timestamp,
+        results: response.data.results || [],
+        processing_time: response.data.processing_time || 0
+      };
     } else {
-      // Send frame data to backend
-      wsConnection.send(frameData);
+      console.warn(`Backend returned unexpected response for camera ${cameraId}:`, response.status);
+      return null;
     }
   } catch (error) {
-    console.error('Error sending frame to backend:', error);
+    console.error(`Error processing frame for camera ${cameraId}:`, error.message);
+    
+    // Send error message to client
+    const client = clients.get(clientId);
+    if (client && client.readyState === WebSocket.OPEN) {
+      client.send(JSON.stringify({
+        type: 'error',
+        camera_id: cameraId,
+        message: `Failed to process frame: ${error.message}`
+      }));
+    }
+    
+    return null;
   }
 }
 
@@ -128,51 +172,7 @@ function startCameraStream(clientId, cameraId, url) {
   // Store the camera information
   console.log(`Started stream for camera ${cameraId} with URL ${url}`);
   
-  // For IP cameras, we need to create a proxy to handle CORS issues
-  if (url && url.includes('http')) {
-    // Create an endpoint to proxy the camera feed
-    const proxyPath = `/camera-proxy/${cameraId}`;
-    
-    app.get(proxyPath, async (req, res) => {
-      try {
-        // Forward the request to the camera URL
-        const response = await axios({
-          method: 'get',
-          url: url,
-          responseType: 'stream',
-          timeout: 5000,
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
-          }
-        });
-        
-        // Set headers
-        res.set({
-          'Content-Type': response.headers['content-type'] || 'image/jpeg',
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        });
-        
-        // Pipe the camera feed to the response
-        response.data.pipe(res);
-      } catch (error) {
-        console.error(`Error proxying camera feed (${cameraId}):`, error.message);
-        res.status(500).send('Error connecting to camera feed');
-      }
-    });
-    
-    // Notify the client about the proxy URL
-    const client = clients.get(clientId);
-    if (client && client.readyState === WebSocket.OPEN) {
-      client.send(JSON.stringify({
-        type: 'camera_proxy',
-        cameraId: cameraId,
-        proxyUrl: proxyPath
-      }));
-    }
-  }
+  // No longer need to create a proxy for IP cameras
 }
 
 // Stop streaming from a camera
@@ -233,6 +233,48 @@ app.post('/api/cameras', async (req, res) => {
   }
 });
 
+// API endpoint to update camera information
+app.post('/api/update-camera', async (req, res) => {
+  try {
+    const cameraData = req.body;
+    
+    if (!cameraData.id) {
+      return res.status(400).json({ success: false, error: 'Camera ID is required' });
+    }
+    
+    // Gửi thông tin cập nhật đến backend
+    // Vì backend chưa có endpoint update riêng, sử dụng endpoint add camera để ghi đè
+    const response = await axios.post(`${backendApiUrl}/cameras`, cameraData);
+    
+    if (response.data && response.data.success) {
+      // Cập nhật thành công, broadcast thông tin camera mới đến tất cả clients
+      broadcastCameraList();
+      res.json({ success: true, cameraId: cameraData.id });
+    } else {
+      res.json({ success: false, error: 'Failed to update camera information' });
+    }
+  } catch (error) {
+    console.error('Error updating camera:', error);
+    res.status(500).json({ success: false, error: 'Failed to update camera information' });
+  }
+});
+
+// Create mobile-camera.html file
+app.post('/api/create-mobile-page', (req, res) => {
+  try {
+    const { content } = req.body;
+    const filePath = path.join(__dirname, 'public', 'mobile-camera.html');
+    
+    // Write file
+    fs.writeFileSync(filePath, content, 'utf8');
+    
+    res.json({ success: true, message: 'Mobile camera page created successfully' });
+  } catch (error) {
+    console.error('Error creating mobile camera page:', error);
+    res.status(500).json({ success: false, error: 'Failed to create mobile camera page' });
+  }
+});
+
 app.get('/api/detections', async (req, res) => {
   try {
     const { camera_id, from_time, to_time, limit } = req.query;
@@ -257,10 +299,52 @@ app.get('/api/detections', async (req, res) => {
   }
 });
 
+// API endpoint to register a new camera proxy - removed since we no longer need proxying
+app.get('/api/register-camera-proxy', async (req, res) => {
+  res.status(400).json({
+    success: false,
+    error: 'Camera proxy functionality has been disabled'
+  });
+});
+
+// API endpoint to get a frame from camera - removed since we're using direct connection
+app.get('/api/camera-frame-proxy', async (req, res) => {
+  res.status(400).json({
+    error: 'Camera proxy functionality has been disabled. Use direct connection to camera URL.'
+  });
+});
+
+// Simple proxy endpoint for IP cameras - removed as we're using direct connections only
+app.get('/api/simple-proxy', async (req, res) => {
+  res.status(400).json({
+    error: 'Proxy functionality has been disabled. Use direct connection to camera URL.'
+  });
+});
+
 // Catch-all route for SPA
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
+
+// Broadcast camera list to all connected clients
+async function broadcastCameraList() {
+  try {
+    const response = await axios.get(`${backendApiUrl}/cameras`);
+    const cameraList = response.data;
+    
+    // Send to all connected clients
+    clients.forEach(client => {
+      if (client.readyState === WebSocket.OPEN) {
+        client.send(JSON.stringify({
+          type: 'camera_list',
+          cameras: cameraList
+        }));
+      }
+    });
+  } catch (error) {
+    console.error('Error broadcasting camera list:', error);
+  }
+}
 
 // Start server
 const PORT = process.env.PORT || 3000;

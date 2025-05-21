@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time Facial Emotion Recognition</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Real-time Facial Emotion Recognition</h1>
+            <div class="user-controls">
+                <button id="loginBtn" class="btn">Login</button>
+            </div>
+        </header>
+        
+        <main>
+            <div class="sidebar">
+                <h2>Cameras</h2>
+                <div class="camera-list" id="cameraList">
+                    <!-- Camera list will be populated by JavaScript -->
+                </div>
+                <div class="camera-controls">
+                    <button id="addCameraBtn" class="btn"><i class="fas fa-plus"></i> Add Camera</button>
+                </div>
+            </div>
+            
+            <div class="content">
+                <!-- Multiple cameras container -->
+                <div class="multi-camera-container" id="multiCameraContainer">
+                    <!-- Camera feeds will be dynamically added here -->
+                </div>
+                
+                <div class="global-controls">
+                    <button id="startAllBtn" class="btn"><i class="fas fa-play"></i> Start All</button>
+                    <button id="stopAllBtn" class="btn"><i class="fas fa-stop"></i> Stop All</button>
+                    <select id="emotionFilter">
+                        <option value="all">All Emotions</option>
+                        <option value="happy">Happy</option>
+                        <option value="sad">Sad</option>
+                        <option value="angry">Angry</option>
+                        <option value="fear">Fear</option>
+                        <option value="surprise">Surprise</option>
+                        <option value="neutral">Neutral</option>
+                        <option value="disgust">Disgust</option>
+                    </select>
+                </div>
+                
+                <div class="results-panel">
+                    <h2>Results</h2>
+                    <div class="emotion-stats" id="emotionStats">
+                        <!-- Emotion statistics will be populated by JavaScript -->
+                    </div>
+                    <div class="detection-history">
+                        <h3>Recent Detections</h3>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Camera</th>
+                                    <th>Emotion</th>
+                                    <th>Confidence</th>
+                                </tr>
+                            </thead>
+                            <tbody id="detectionTable">
+                                <!-- Detection history will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+    
+    <!-- Modals -->
+    <div class="modal" id="loginModal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Admin Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label for="username">Username:</label>
+                    <input type="text" id="username" name="username" required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password:</label>
+                    <input type="password" id="password" name="password" required>
+                </div>
+                <button type="submit" class="btn">Login</button>
+            </form>
+        </div>
+    </div>
+    
+    <div class="modal" id="addCameraModal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <h2>Add Camera</h2>
+            <form id="addCameraForm">
+                <div class="form-group">
+                    <label for="cameraName">Camera Name:</label>
+                    <input type="text" id="cameraName" name="cameraName" required>
+                </div>
+                <div class="form-group">
+                    <label for="cameraType">Camera Type:</label>
+                    <select id="cameraType" name="cameraType">
+                        <option value="webcam">Webcam</option>
+                        <option value="ip_camera">IP Camera</option>
+                    </select>
+                </div>
+                <div class="form-group" id="ipUrlGroup">
+                    <label for="cameraUrl">Camera URL:</label>
+                    <input type="text" id="cameraUrl" name="cameraUrl" placeholder="http://192.168.1.4:8080">
+                    <small class="form-text text-muted">The "/video" endpoint will be added automatically. Example: Enter "http://192.168.1.4:8080"</small>
+                </div>
+                <button type="submit" class="btn">Add Camera</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Single camera view template (hidden) -->
+    <template id="cameraTemplate">
+        <div class="camera-box">
+            <div class="video-wrapper">
+                <video class="video-element" autoplay playsinline></video>
+                <canvas class="overlay-canvas"></canvas>
+                <div class="camera-status">Camera not started</div>
+            </div>
+            <div class="camera-title"></div>
+            <div class="camera-controls">
+                <button class="start-btn btn"><i class="fas fa-play"></i></button>
+                <button class="stop-btn btn" disabled><i class="fas fa-stop"></i></button>
+                <button class="capture-btn btn"><i class="fas fa-camera"></i></button>
+            </div>
+        </div>
+    </template>
+    
+    <script src="js/app.js"></script>
+</body>
+</html> 

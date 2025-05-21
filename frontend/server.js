@@ -321,6 +321,99 @@ app.get('/api/simple-proxy', async (req, res) => {
   });
 });
 
+// API for capturing IP camera images server-side
+app.post('/api/capture-ip-camera', async (req, res) => {
+  const { camera_url, camera_id } = req.body;
+  
+  if (!camera_url) {
+    return res.status(400).json({ error: 'Camera URL is required' });
+  }
+  
+  console.log(`Server-side capture request for camera ${camera_id}: ${camera_url}`);
+  
+  try {
+    // Add timestamp to URL to avoid caching
+    const targetUrl = camera_url.includes('?') 
+      ? `${camera_url}&t=${Date.now()}` 
+      : `${camera_url}?t=${Date.now()}`;
+    
+    // Try HTTPS first
+    try {
+      // Fetch image from IP camera
+      const response = await axios({
+        method: 'get',
+        url: targetUrl,
+        responseType: 'arraybuffer',
+        timeout: 5000,
+        headers: {
+          'Cache-Control': 'no-cache',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        // Skip SSL verification to allow self-signed certs
+        httpsAgent: new (require('https').Agent)({ rejectUnauthorized: false })
+      });
+      
+      // Check if we got valid data
+      if (!response.data || response.data.length === 0) {
+        throw new Error('Empty response from camera');
+      }
+      
+      // Convert image to base64
+      const imageBuffer = Buffer.from(response.data);
+      const contentType = response.headers['content-type'] || 'image/jpeg';
+      const base64Image = `data:${contentType};base64,${imageBuffer.toString('base64')}`;
+      
+      console.log(`Successfully captured image from camera ${camera_id}, size: ${response.data.length} bytes`);
+      
+      // Send the base64 data back to client
+      res.json({
+        success: true,
+        camera_id: camera_id,
+        image_data: base64Image
+      });
+    } catch (httpsError) {
+      // If HTTPS failed, try HTTP as fallback
+      if (targetUrl.startsWith('https://')) {
+        console.log(`HTTPS failed, trying HTTP for camera ${camera_id}`);
+        const httpUrl = targetUrl.replace('https://', 'http://');
+        
+        const httpResponse = await axios({
+          method: 'get',
+          url: httpUrl,
+          responseType: 'arraybuffer',
+          timeout: 5000,
+          headers: {
+            'Cache-Control': 'no-cache',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+        
+        // Convert image to base64
+        const imageBuffer = Buffer.from(httpResponse.data);
+        const contentType = httpResponse.headers['content-type'] || 'image/jpeg';
+        const base64Image = `data:${contentType};base64,${imageBuffer.toString('base64')}`;
+        
+        console.log(`Successfully captured image using HTTP for camera ${camera_id}`);
+        
+        // Send the base64 data back to client
+        res.json({
+          success: true,
+          camera_id: camera_id,
+          image_data: base64Image
+        });
+      } else {
+        throw httpsError; // Re-throw if it wasn't an HTTPS URL
+      }
+    }
+  } catch (error) {
+    console.error(`Error capturing image from camera ${camera_id}:`, error.message);
+    res.status(500).json({ 
+      error: `Failed to capture image: ${error.message}`,
+      camera_id: camera_id
+    });
+  }
+});
+
 // Catch-all route for SPA
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

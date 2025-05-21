@@ -1808,7 +1808,7 @@ function fetchSavedImages(cameraId) {
         });
 }
 
-// Simplified captureAndSendIPCameraFrame function with direct connection only
+// Cập nhật hàm captureAndSendIPCameraFrame để sử dụng server-side capture
 function captureAndSendIPCameraFrame(cameraId) {
     const camera = getCameraById(cameraId);
     const cameraElement = getCameraElement(cameraId);
@@ -1818,19 +1818,6 @@ function captureAndSendIPCameraFrame(cameraId) {
     try {
         // Update status
         updateCameraStatus(cameraId, `Capturing image... (${new Date().toLocaleTimeString()})`);
-        
-        // Get image from IP camera feed
-        const ipCameraImg = cameraElement.querySelector('.ip-camera-feed');
-        
-        // Check if image is loaded and not an error image
-        if (!ipCameraImg || !ipCameraImg.complete || !ipCameraImg.naturalWidth || 
-            ipCameraImg.src.startsWith('data:image/svg+xml')) {
-            console.log("IP camera not ready or showing error image");
-            updateCameraStatus(cameraId, "IP camera not ready");
-            return;
-        }
-        
-        console.log(`Capturing image from IP camera ${cameraId} - Size: ${ipCameraImg.naturalWidth}x${ipCameraImg.naturalHeight}`);
         
         // Add flash effect
         const flashElement = document.createElement('div');
@@ -1844,25 +1831,66 @@ function captureAndSendIPCameraFrame(cameraId) {
             }
         }, 500);
         
-        // Create canvas to process the image
-        const canvas = document.createElement('canvas');
-        canvas.width = ipCameraImg.naturalWidth || 640;
-        canvas.height = ipCameraImg.naturalHeight || 480;
-        
-        // Draw the image on canvas
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(ipCameraImg, 0, 0, canvas.width, canvas.height);
-        
-        // Convert to base64
-        try {
-            const frameData = canvas.toDataURL('image/jpeg', 0.9);
+        // Sử dụng API server-side để lấy ảnh từ camera IP
+        fetch('/api/capture-ip-camera', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                camera_url: camera.url,
+                camera_id: camera.id
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
             
-            // Send the frame to the server
-            sendFrameToServer(cameraId, camera, frameData);
-        } catch (error) {
-            console.error(`Error processing IP camera image: ${error.message}`);
+            // Nếu có dữ liệu ảnh từ server
+            if (data.image_data) {
+                // Tạo một ảnh mới từ dữ liệu base64
+                const img = new Image();
+                img.onload = function() {
+                    // Tạo canvas để xử lý ảnh
+                    const canvas = document.createElement('canvas');
+                    canvas.width = img.naturalWidth || 640;
+                    canvas.height = img.naturalHeight || 480;
+                    
+                    // Vẽ ảnh lên canvas
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                    
+                    // Chuyển đổi sang base64 (nếu cần)
+                    try {
+                        const frameData = canvas.toDataURL('image/jpeg', 0.9);
+                        
+                        // Gửi frame đến server
+                        sendFrameToServer(cameraId, camera, frameData);
+                        
+                        updateCameraStatus(cameraId, `Image processed (${new Date().toLocaleTimeString()})`);
+                    } catch (canvasError) {
+                        console.error('Error processing canvas:', canvasError);
+                        updateCameraStatus(cameraId, `Error processing image: ${canvasError.message}`);
+                    }
+                };
+                
+                img.onerror = function(err) {
+                    console.error('Error loading image from server:', err);
+                    updateCameraStatus(cameraId, 'Error loading image');
+                };
+                
+                // Load ảnh từ dữ liệu base64
+                img.src = data.image_data;
+            } else {
+                updateCameraStatus(cameraId, 'No image data received');
+            }
+        })
+        .catch(error => {
+            console.error('Error capturing IP camera image:', error);
             updateCameraStatus(cameraId, `Error: ${error.message}`);
-        }
+        });
     } catch (error) {
         console.error(`Error in IP camera frame capture: ${error.message}`);
         updateCameraStatus(cameraId, `Error: ${error.message}`);
